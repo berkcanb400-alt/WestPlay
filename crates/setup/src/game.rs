@@ -13,10 +13,9 @@ use crate::{places, vdf};
 
 /// The game's app id on Steam (its manifest, its Workshop folder, its Steam Cloud folder).
 pub const STEAM_APP: &str = "227300";
-/// The game's executable, in its folder.
-const EXECUTABLE: &str = "bin/win_x64/eurotrucks2.exe";
-/// The game's process, as Windows names it (TruckersMP's client runs the same).
-const PROCESS: &str = "eurotrucks2.exe";
+pub const STEAM_APP_ATS: &str = "270880";
+const EXECUTABLES: &[&str] = &["bin/win_x64/amtrucks.exe", "bin/win_x64/eurotrucks2.exe"];
+const PROCESSES: &[&str] = &["amtrucks.exe", "eurotrucks2.exe"];
 /// The game versions WestPlay has been tried with. Others may well work (the plugin finds what it needs in
 /// the game by its shape), but haven't been tried.
 pub const TESTED_VERSIONS: &str = "1.61.*";
@@ -68,9 +67,10 @@ impl fmt::Display for Version {
 impl Game {
     /// The game in `dir`, if it's an install of it: its archives and its executable are there.
     pub fn at(dir: &Path, found_by: FoundBy) -> Option<Self> {
-        if !dir.join("base.scs").is_file() || !dir.join(EXECUTABLE).is_file() {
+        if !dir.join("base.scs").is_file() {
             return None;
         }
+        let exe = EXECUTABLES.iter().find(|exe| dir.join(exe).is_file())?;
         let mut dlcs: Vec<String> = std::fs::read_dir(dir)
             .ok()?
             .flatten()
@@ -81,7 +81,7 @@ impl Game {
             })
             .collect();
         dlcs.sort();
-        Some(Self { dir: dir.to_path_buf(), found_by, version: executable_version(&dir.join(EXECUTABLE)), dlcs })
+        Some(Self { dir: dir.to_path_buf(), found_by, version: executable_version(&dir.join(exe)), dlcs })
     }
 
     /// The game in `dir`, found as [`find`] finds it (Steam's, or listed as installed) or else as chosen.
@@ -104,7 +104,8 @@ impl Game {
         if !named(common, "common") || !named(steamapps, "steamapps") {
             return None;
         }
-        let workshop = steamapps.join("workshop").join("content").join(STEAM_APP);
+        let app_id = if self.dir.join("bin/win_x64/amtrucks.exe").is_file() { STEAM_APP_ATS } else { STEAM_APP };
+        let workshop = steamapps.join("workshop").join("content").join(app_id);
         workshop.is_dir().then_some(workshop)
     }
 
@@ -128,9 +129,11 @@ pub fn find() -> Vec<Game> {
     if let Some(steam) = places::steam() {
         for library in places::steam_libraries(&steam) {
             let steamapps = library.join("steamapps");
-            let manifest = std::fs::read_to_string(steamapps.join(format!("appmanifest_{STEAM_APP}.acf"))).ok();
-            if let Some(folder) = manifest.as_deref().and_then(steam_install_dir) {
-                add(Game::at(&steamapps.join("common").join(folder), FoundBy::Steam));
+            for app_id in [STEAM_APP_ATS, STEAM_APP] {
+                let manifest = std::fs::read_to_string(steamapps.join(format!("appmanifest_{app_id}.acf"))).ok();
+                if let Some(folder) = manifest.as_deref().and_then(steam_install_dir) {
+                    add(Game::at(&steamapps.join("common").join(folder), FoundBy::Steam));
+                }
             }
         }
     }
@@ -157,7 +160,8 @@ pub fn running() -> bool {
     let mut more = unsafe { Process32FirstW(snapshot, &mut entry) }.is_ok();
     while more {
         let length = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-        if String::from_utf16_lossy(&entry.szExeFile[..length]).eq_ignore_ascii_case(PROCESS) {
+        let exe_name = String::from_utf16_lossy(&entry.szExeFile[..length]);
+        if PROCESSES.iter().any(|p| exe_name.eq_ignore_ascii_case(p)) {
             found = true;
             break;
         }
@@ -175,14 +179,15 @@ pub fn running() -> bool {
 pub fn steam_install_dir(manifest: &str) -> Option<String> {
     let file = vdf::parse(manifest)?;
     let state = file.get("AppState")?;
-    (state.get("appid")?.text()? == STEAM_APP).then_some(())?;
+    let appid = state.get("appid")?.text()?;
+    (appid == STEAM_APP || appid == STEAM_APP_ATS).then_some(())?;
     Some(state.get("installdir")?.text()?.to_owned())
 }
 
 /// Whether a program Windows lists is the game (not its demo, nor American Truck Simulator).
 pub fn is_the_game(name: &str) -> bool {
     let name = name.to_lowercase();
-    name.contains("euro truck simulator 2") && !name.contains("demo")
+    (name.contains("euro truck simulator 2") || name.contains("american truck simulator")) && !name.contains("demo")
 }
 
 fn same_folder(a: &Path, b: &Path) -> bool {
@@ -254,15 +259,18 @@ mod tests {
     fn reads_the_folder_steam_installed_the_game_in() {
         let manifest = "\"AppState\"\n{\n\t\"appid\"\t\t\"227300\"\n\t\"installdir\"\t\t\"Euro Truck Simulator 2\"\n}";
         assert_eq!(steam_install_dir(manifest).as_deref(), Some("Euro Truck Simulator 2"));
+        let ats_manifest = "\"AppState\"\n{\n\t\"appid\"\t\t\"270880\"\n\t\"installdir\"\t\t\"American Truck Simulator\"\n}";
+        assert_eq!(steam_install_dir(ats_manifest).as_deref(), Some("American Truck Simulator"));
         // Another game's manifest.
-        assert_eq!(steam_install_dir("\"AppState\" { \"appid\" \"270880\" \"installdir\" \"American\" }"), None);
+        assert_eq!(steam_install_dir("\"AppState\" { \"appid\" \"999999\" \"installdir\" \"Other\" }"), None);
     }
 
     #[test]
     fn knows_the_game_in_windows_list_of_programs() {
         assert!(is_the_game("Euro Truck Simulator 2"));
+        assert!(is_the_game("American Truck Simulator"));
         assert!(!is_the_game("Euro Truck Simulator 2 Demo"));
-        assert!(!is_the_game("American Truck Simulator"));
+        assert!(!is_the_game("American Truck Simulator Demo"));
     }
 
     #[test]
