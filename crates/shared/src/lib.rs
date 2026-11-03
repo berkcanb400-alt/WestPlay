@@ -147,7 +147,7 @@ pub const TRUCK_UNSUPPORTED: u32 = 2;
 /// those only the Scania S and R's and the S BEV's (the S's 7" display) are WestPlay's. The other layouts are
 /// their own trucks' scripts.
 const SHARED_LAYOUT_TRUCKS: &[(&str, &[&str])] = &[
-    ("generic", &["scania.s_2016", "scania.r_2016", "scania.s_2024e"]),
+    ("generic", &["scania.s_2016", "scania.r_2016", "scania.s_2024e", "freightliner.cascadia", "freightliner.cascadia2019", "freightliner.cascadia2024", "kenworth.t680", "kenworth.t680_2022", "kenworth.w900", "peterbilt.389", "peterbilt.579", "volvo.vnl", "volvo.vnl2018", "volvo.vnl2025", "westernstar.49x", "westernstar.57x", "westernstar.5700xe", "international.lt", "international.lonestar", "international.9900i", "mack.anthem", "mack.pinnacle"]),
     // The game's toy GPS (Cabin Accessories), WestPlay's only on Oyuncuyusbis' Setra S 516 HD/2's tablet part.
     ("setra-516", &["setra516hd"]),
 ];
