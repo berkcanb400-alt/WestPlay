@@ -71,6 +71,18 @@ pub const TRUCKS: &[Truck] = &[
     },
     Truck { id: "iveco-sway", name: "Iveco S-Way", source: Source::Game("iveco.sway"), layout: Some("iveco-sway") },
     Truck {
+        id: "freightliner-cascadia",
+        name: "Freightliner Cascadia",
+        source: Source::Game("freightliner.cascadia2019"),
+        layout: Some("generic"),
+    },
+    Truck {
+        id: "freightliner-cascadia-2024",
+        name: "Freightliner Cascadia (2024)",
+        source: Source::Game("freightliner.cascadia2024"),
+        layout: Some("generic"),
+    },
+    Truck {
         id: "renault-t-2024",
         name: "Renault T (2024)",
         source: Source::Game("renault.t"),
