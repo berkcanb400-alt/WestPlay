@@ -119,19 +119,26 @@ pub fn westplay_documents() -> Option<PathBuf> {
 /// The game's own folder in Documents: its profiles, mods and settings. Of the folders that may be Documents
 /// ([`documents_folders`]), the one the game wrote its settings in last; Windows' Documents' if it has none
 /// yet (a game never started).
+const GAME_FOLDERS: &[&str] = &["American Truck Simulator", "Euro Truck Simulator 2"];
+
 pub fn game_documents() -> Option<PathBuf> {
-    choose_game_documents(&documents_folders()).or_else(|| Some(documents()?.join(GAME_FOLDER)))
+    choose_game_documents(&documents_folders())
+        .or_else(|| documents().map(|d| d.join("American Truck Simulator")))
+        .or_else(|| documents().map(|d| d.join(GAME_FOLDER)))
 }
 
-/// Of `folders`, the game's folder whose `config.cfg` the game wrote last (the earlier folder on a tie).
+/// Of olders, the game's folder whose config.cfg the game wrote last (the earlier folder on a tie).
 fn choose_game_documents(folders: &[PathBuf]) -> Option<PathBuf> {
     let written = |game: &Path| std::fs::metadata(game.join("config.cfg")).and_then(|m| m.modified()).ok();
     let mut latest: Option<(std::time::SystemTime, PathBuf)> = None;
-    for game in folders.iter().map(|folder| folder.join(GAME_FOLDER)) {
-        if let Some(at) = written(&game)
-            && latest.as_ref().is_none_or(|(best, _)| at > *best)
-        {
-            latest = Some((at, game));
+    for folder in folders {
+        for name in GAME_FOLDERS {
+            let game = folder.join(name);
+            if let Some(at) = written(&game)
+                && latest.as_ref().is_none_or(|(best, _)| at > *best)
+            {
+                latest = Some((at, game));
+            }
         }
     }
     latest.map(|(_, game)| game)
